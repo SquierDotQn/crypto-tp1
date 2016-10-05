@@ -1,0 +1,158 @@
+ Création chèque :
+
+Client | marchand | banque
+
+
+
+Clé possédées :
++----------+--------+----------+--------+
+|          | Client | Marchand | Banque |
++----------+--------+----------+--------+
+| Client   |  P  S  |          |        |
++----------+--------+----------+--------+
+| Marchand |        |  P    S  |  P     |
++----------+--------+----------+--------+
+| Banque   |  P     |  P       |  P  S  |
++----------+--------+----------+--------+
+
+
+Client      = Lui-même
+Marchand    = Lui-même, banque
+Banque      = Lui-même, client et marchand
+
+
+
+
+# 1 Init
+
+Clés partagées
+
+# 2 Facture = N° compte et montant
+
+Marchand génère une facture avec un n°ID unique, sa clé pub, n° de compte, montant => Signature de tout ça ( sauf clé publique )
+
+## FACTURE ##
+id:18455
+merch_key:{pub_key}
+merch_acc:54321
+price:50
+#SIGN#
+{sign_fact}
+{sign_marchand_by_bank}
+
+# 3 Script chèque prend facture en paramètre et fait un ordre de paiement
+
+Depuis facture, reprend l'ID unique, le n° de compte du marchand, et le montant
+
+## TRANSACTION ##
+id:18455
+price:50
+## FROM ##
+merch_acc:54321
+## TO ##
+client_acc:012345
+#SIGN#
+{sign_trans}
+{sign_client_par_bank}
+
+# 4 Commerçant vérifie un ordre de paiement
+
+
+
+# 5 Encaissement du commerçant à la banque
+
+
+
+# UTILS
+
+Signature:
+echo "Toto le haricot" | openssl rsautl -encrypt -inkey public.key -pubin | base64 > pubenc.txt
+    Design :
+    cat pubenc.txt | base64 -d | openssl rsautl -decrypt -inkey private.key
+
+Hash:
+echo "test" | openssl sha1
+
+Random:
+tr -cd '[:digit:]' < /dev/urandom | fold -w10 | head -n1
+
+
+Signing:
+
+openssl dgst -sha256 data.txt > hash
+openssl rsautl -sign -inkey privatekey.pem -keyform PEM -in hash > signature
+
+Verifying:
+
+openssl rsautl -verify -inkey publickey.pem -keyform PEM -in signature
+
+
+recup key check : 
+cat client/check1 | grep -A 6 "client_pkey" | tail -n 6
+
+recup champ :
+cat client/check1 | grep "check_id" | cut -d':' -f2
+
+
+
+
+# OLD ##########################################################################
+
+
+
+1 INIT :
+
+Banque donne chèque vierge au client, et la signature du chèque avec sa clé privée
++---------------------------------------+
+| ID du chèque                          |
++---------------------------------------+   
+| Signature de la banque :              |
+|   Clé publique du client (vérif iden) |
+|   ID du chèque                        |
++---------------------------------------+
+
+2 DEMANDE :
+
+Le marchand envoie sa clé publique ( et une signature de la clé du marchand par la banque ), le montant et le montant signé par sa propre clé
+
+Tout est mis à jour dans le chèque par le client
++---------------------------------------+
+| ID du chèque                          |
+| Montant                               |
+| Clé publique du marchand              |
++---------------------------------------+   
+| Signature de la banque :              |
+|   Clé publique du client (vérif iden) |
+|   ID du chèque                        |
+|   Clé publique du marchand            |
++---------------------------------------+
+| Signature du marchand :               |
+|   Montant                             |
++---------------------------------------+
+
+3 REGLEMENT :
+
++---------------------------------------+
+| ID du chèque                          |
+| Montant                               |
+| Clé publique du marchand              |
++---------------------------------------+   
+| Signature de la banque :              |
+|   Clé publique du client (vérif iden) |
+|   ID du chèque                        |
+|   Clé publique du marchand            |
++---------------------------------------+
+| Signature du marchand :               |
+|   ID du chèque                        |
+|   Montant                             |
++---------------------------------------+
+| Signature du client :                 |
+|   ID du chèque                        |
+|   Montant                             |
+|   Clé publique du marchand            |
++---------------------------------------+
+
+4 MISE EN PAIEMENT :
+
+La banque vérifie les identités des deux parties grâce à la signature de la banque
+Avec les clés publiques présentes dans sa propre signature, la banque déchiffre les deux autres signatures, et vérifie que les informations concordent
